@@ -1,0 +1,164 @@
+---
+title: "Laboratorio 8 - Máquinas Vectoriales de Soporte (SVM)"
+author: "Luis Gonzalez 23353 - Joel Jaquez 23369 - Fabian Morales 23267"
+date: "2026-04-24"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Actividad 1 – Conjuntos de entrenamiento y prueba
+
+```{r librerias-svm}
+library(dplyr)
+library(readr)
+library(tidyr)
+library(ggplot2)
+library(caret)
+library(e1071)
+```
+
+```{r carga-datos-svm}
+load("datos/listings.RData")
+```
+
+```{r preprocesamiento-svm}
+# Mismos conjuntos de entrenamiento y prueba de todos los labs anteriores
+# set.seed(123), split 80/20, mismas 6 variables y filtros
+listings_clean_comp <- listings %>%
+  mutate(price = parse_number(price)) %>%
+  select(-c(listing_url, scrape_id, picture_url, host_url,
+            host_thumbnail_url, host_picture_url, description,
+            neighborhood_overview, host_about, amenities))
+
+set.seed(123)
+total_filas  <- nrow(listings_clean_comp)
+indice_train <- sample(1:total_filas, size = 0.8 * total_filas)
+train_comp   <- listings_clean_comp[ indice_train, ]
+test_comp    <- listings_clean_comp[-indice_train, ]
+
+train_modelo <- train_comp %>%
+  filter(!is.na(price), price < 1000,
+         !is.na(bedrooms), bedrooms <= 10,
+         !is.na(bathrooms), !is.na(accommodates)) %>%
+  select(price, accommodates, bedrooms, bathrooms,
+         number_of_reviews, review_scores_rating) %>%
+  drop_na()
+
+test_modelo <- test_comp %>%
+  filter(!is.na(price), price < 1000,
+         !is.na(bedrooms), bedrooms <= 10,
+         !is.na(bathrooms), !is.na(accommodates)) %>%
+  select(price, accommodates, bedrooms, bathrooms,
+         number_of_reviews, review_scores_rating) %>%
+  drop_na()
+
+cat("Filas entrenamiento:", nrow(train_modelo), "\n")
+cat("Filas prueba:       ", nrow(test_modelo),  "\n")
+```
+
+Para garantizar una comparación válida con todos los modelos desarrollados a lo largo del curso, se reutilizaron exactamente los mismos conjuntos de entrenamiento y prueba generados desde el Laboratorio 3. Utilizando set.seed(123) y una división 80/20, el conjunto de entrenamiento quedó con 48,442 observaciones y el de prueba con 12,173, ambos con las mismas 6 variables: price, accommodates, bedrooms, bathrooms, number_of_reviews y review_scores_rating, aplicando los mismos filtros de precio menor a $1,000 y habitaciones menores o iguales a 10.
+
+# Actividad 2 – Exploración de datos y transformaciones para SVM
+
+```{r exploracion-svm}
+# Resumen estadístico de las variables
+summary(train_modelo)
+```
+
+```{r correlacion-svm}
+# Correlación entre predictores
+cor_matrix <- cor(train_modelo)
+print(round(cor_matrix, 3))
+```
+
+```{r distribucion-svm}
+# Distribución de las variables predictoras
+train_modelo %>%
+  select(-price) %>%
+  tidyr::pivot_longer(everything(),
+                      names_to  = "Variable",
+                      values_to = "Valor") %>%
+  ggplot(aes(x = Valor)) +
+  geom_histogram(bins = 30, fill = "#2196F3",
+                 color = "white", alpha = 0.8) +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(title = "Distribución de variables predictoras",
+       x = "Valor", y = "Frecuencia") +
+  theme_minimal()
+```
+
+```{r escalado-svm}
+# SVM requiere normalización obligatoria
+# Verificar escalas de las variables
+cat("=== Rangos de variables ===\n")
+cat("accommodates      :", min(train_modelo$accommodates),
+    "-", max(train_modelo$accommodates), "\n")
+cat("bedrooms          :", min(train_modelo$bedrooms),
+    "-", max(train_modelo$bedrooms), "\n")
+cat("bathrooms         :", min(train_modelo$bathrooms),
+    "-", max(train_modelo$bathrooms), "\n")
+cat("number_of_reviews :", min(train_modelo$number_of_reviews),
+    "-", max(train_modelo$number_of_reviews), "\n")
+cat("review_scores_rating:", min(train_modelo$review_scores_rating),
+    "-", max(train_modelo$review_scores_rating), "\n")
+```
+
+La exploración de los datos revela características importantes que justifican las transformaciones necesarias para SVM. El resumen estadístico muestra que las variables tienen escalas completamente distintas: number_of_reviews va de 1 a 1,592 mientras que review_scores_rating va de 1 a 5, y accommodates va de 1 a 16. Esta diferencia de escalas es crítica para SVM ya que el algoritmo calcula distancias entre puntos en el espacio de características, por lo que variables con rangos mayores dominarían completamente el cálculo. La normalización es obligatoria y se aplicará con preProcess = c("center", "scale") igual que en KNN.
+
+Las distribuciones confirman este problema: number_of_reviews está fuertemente sesgada a la derecha con la mayoría de propiedades concentradas cerca de 0 y algunos valores extremos hasta 1,592, mientras que review_scores_rating se concentra entre 4.5 y 5. Las variables de capacidad (accommodates, bedrooms, bathrooms) tienen distribuciones discretas concentradas en valores bajos.
+
+La matriz de correlación muestra multicolinealidad moderada entre accommodates, bedrooms y bathrooms (correlaciones de 0.67 a 0.83), similar a lo observado en labs anteriores. Esto no impide usar SVM pero sí refuerza la necesidad de normalización para que ninguna variable domine el hiperplano de separación.
+
+# Actividad 3 – Variable categórica de precio
+
+```{r variable-categorica-svm}
+# Mismos cortes P33=136 y P67=250 de todos los labs anteriores
+precios_validos <- listings_clean_comp %>%
+  filter(!is.na(price), price > 0, price < 1000) %>%
+  pull(price)
+
+p33 <- quantile(precios_validos, 0.33)
+p67 <- quantile(precios_validos, 0.67)
+cat("P33:", round(p33, 2), "| P67:", round(p67, 2), "\n")
+
+# Crear variable categórica en train y test
+train_svm <- train_modelo %>%
+  mutate(
+    precio_cat = case_when(
+      price <= p33 ~ "barata",
+      price <= p67 ~ "media",
+      TRUE         ~ "cara"
+    ) %>% as.factor()
+  ) %>%
+  select(-price)
+
+test_svm <- test_modelo %>%
+  mutate(
+    precio_cat = case_when(
+      price <= p33 ~ "barata",
+      price <= p67 ~ "media",
+      TRUE         ~ "cara"
+    ) %>% as.factor()
+  ) %>%
+  select(-price)
+
+cat("\nDistribución entrenamiento:\n")
+print(table(train_svm$precio_cat))
+cat("\nDistribución prueba:\n")
+print(table(test_svm$precio_cat))
+
+# Muestra reducida para SVM (necesario por costo computacional)
+set.seed(123)
+idx_muestra  <- sample(nrow(train_svm), 5000)
+train_svm_m  <- train_svm[idx_muestra, ]
+cat("\nMuestra de entrenamiento para SVM:", nrow(train_svm_m), "filas\n")
+```
+
+Se creó la variable categórica de precio utilizando los mismos puntos de corte P33=$136 y P67=$250 definidos desde el Laboratorio 4, garantizando consistencia con todos los modelos anteriores. Las propiedades se clasifican como barata (precio ≤$136), media ($136-$250) y cara (>$250). La distribución es bastante balanceada en ambos conjuntos: en entrenamiento hay 16,789 baratas, 14,963 caras y 16,690 medias, y en prueba 4,167 baratas, 3,741 caras y 4,265 medias, lo cual es favorable para el entrenamiento ya que ninguna clase domina sobre las demás.
+
+Dado que SVM tiene una complejidad computacional cuadrática con el número de observaciones, entrenar con las 48,442 filas completas tomaría horas. Por ello se utilizará una muestra aleatoria de 5,000 observaciones del conjunto de entrenamiento con set.seed(123) para garantizar reproducibilidad, una práctica válida y común cuando se trabaja con SVM en datasets grandes.
