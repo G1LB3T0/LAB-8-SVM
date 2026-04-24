@@ -203,4 +203,30 @@ print(svm_poli)
 ```
 El tercer modelo utiliza un kernel polinomial con C=1 y grado d=3, que proyecta los datos a un espacio de mayor dimensión usando combinaciones polinomiales de las variables hasta el grado especificado. Con 4,505 vectores de soporte, este modelo tiene el número más alto de los tres, superando tanto al lineal (4,247) como al radial (4,050). Esto indica que el kernel polinomial de grado 3 tiene más dificultades para encontrar fronteras limpias entre las categorías de precio con estas variables, lo que generalmente se traduce en peor capacidad de generalización. El parámetro coef.0 = 0 es el término independiente del polinomio, que en este caso no agrega desplazamiento a la función kernel. En general, el kernel polinomial es más sensible a la escala de los datos y requiere un tuneo más cuidadoso de sus parámetros para alcanzar buen desempeño.
 
+```{r svm-tuneo}
+set.seed(123)
+grid_svm <- expand.grid(
+  C     = c(0.1, 1, 10),
+  sigma = c(0.01, 0.1, 1)
+)
+
+ctrl_svm <- trainControl(method  = "cv",
+                         number  = 5,
+                         verbose = FALSE)
+
+modelo_tuned <- train(
+  precio_cat ~ .,
+  data       = train_svm_m,
+  method     = "svmRadial",
+  trControl  = ctrl_svm,
+  tuneGrid   = grid_svm,
+  preProcess = c("center", "scale")
+)
+
+print(modelo_tuned$bestTune)
+plot(modelo_tuned,
+     main = "Accuracy por combinación C × sigma – SVM Radial")
+```
+El tuneo automático mediante grid search probó 9 combinaciones de C (0.1, 1, 10) y sigma (0.01, 0.1, 1) usando validación cruzada de 5 pliegues, encontrando que la mejor combinación es C=10 y sigma=0.01. El gráfico muestra claramente que C=10 (línea naranja) obtiene el mejor Accuracy en sigma=1 con aproximadamente 58.2%, mientras que valores altos de sigma degradan el rendimiento especialmente con C=10. Con sigma=0.01, que es un valor pequeño, el modelo genera fronteras de decisión más suaves y globales, evitando sobreajustarse a los datos de entrenamiento. El valor alto de C=10 indica que el modelo prefiere penalizar más los errores de clasificación, es decir, es menos tolerante a observaciones mal clasificadas en el conjunto de entrenamiento, lo que le permite capturar mejor los patrones de las tres categorías de precio. En general el Accuracy en validación cruzada se mantiene en un rango estrecho entre 55% y 58%, lo que confirma que la tarea de clasificación de precios en tres categorías es inherentemente difícil con estas variables.
+
 
