@@ -11,7 +11,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
-# Actividad 1 – Conjuntos de entrenamiento y prueba
+# Actividad 1 - Conjuntos de entrenamiento y prueba
 
 ```{r librerias-svm}
 library(dplyr)
@@ -20,6 +20,7 @@ library(tidyr)
 library(ggplot2)
 library(caret)
 library(e1071)
+library(reshape2)
 ```
 
 ```{r carga-datos-svm}
@@ -63,7 +64,7 @@ cat("Filas prueba:       ", nrow(test_modelo),  "\n")
 
 Para garantizar una comparación válida con todos los modelos desarrollados a lo largo del curso, se reutilizaron exactamente los mismos conjuntos de entrenamiento y prueba generados desde el Laboratorio 3. Utilizando set.seed(123) y una división 80/20, el conjunto de entrenamiento quedó con 48,442 observaciones y el de prueba con 12,173, ambos con las mismas 6 variables: price, accommodates, bedrooms, bathrooms, number_of_reviews y review_scores_rating, aplicando los mismos filtros de precio menor a $1,000 y habitaciones menores o iguales a 10.
 
-# Actividad 2 – Exploración de datos y transformaciones para SVM
+# Actividad 2 - Exploración de datos y transformaciones para SVM
 
 ```{r exploracion-svm}
 # Resumen estadístico de las variables
@@ -114,7 +115,7 @@ Las distribuciones confirman este problema: number_of_reviews está fuertemente 
 
 La matriz de correlación muestra multicolinealidad moderada entre accommodates, bedrooms y bathrooms (correlaciones de 0.67 a 0.83), similar a lo observado en labs anteriores. Esto no impide usar SVM pero sí refuerza la necesidad de normalización para que ninguna variable domine el hiperplano de separación.
 
-# Actividad 3 – Variable categórica de precio
+# Actividad 3 - Variable categórica de precio
 
 ```{r variable-categorica-svm}
 # Mismos cortes P33=136 y P67=250 de todos los labs anteriores
@@ -225,7 +226,7 @@ modelo_tuned <- train(
 
 print(modelo_tuned$bestTune)
 plot(modelo_tuned,
-     main = "Accuracy por combinación C × sigma – SVM Radial")
+     main = "Accuracy por combinación C × sigma - SVM Radial")
 ```
 El tuneo automático mediante grid search probó 9 combinaciones de C (0.1, 1, 10) y sigma (0.01, 0.1, 1) usando validación cruzada de 5 pliegues, encontrando que la mejor combinación es C=10 y sigma=0.01. El gráfico muestra claramente que C=10 (línea naranja) obtiene el mejor Accuracy en sigma=1 con aproximadamente 58.2%, mientras que valores altos de sigma degradan el rendimiento especialmente con C=10. Con sigma=0.01, que es un valor pequeño, el modelo genera fronteras de decisión más suaves y globales, evitando sobreajustarse a los datos de entrenamiento. El valor alto de C=10 indica que el modelo prefiere penalizar más los errores de clasificación, es decir, es menos tolerante a observaciones mal clasificadas en el conjunto de entrenamiento, lo que le permite capturar mejor los patrones de las tres categorías de precio. En general el Accuracy en validación cruzada se mantiene en un rango estrecho entre 55% y 58%, lo que confirma que la tarea de clasificación de precios en tres categorías es inherentemente difícil con estas variables.
 
@@ -244,7 +245,7 @@ acc_radial <- mean(pred_radial == test_svm$precio_cat) * 100
 acc_poli   <- mean(pred_poli   == test_svm$precio_cat) * 100
 acc_tuned  <- mean(pred_tuned  == test_svm$precio_cat) * 100
 
-cat("===== Accuracy – Conjunto de Prueba =====\n")
+cat("===== Accuracy - Conjunto de Prueba =====\n")
 cat(sprintf("Kernel Lineal     (C=1)        : %.2f%%\n", acc_lineal))
 cat(sprintf("Kernel Radial     (C=1, g=0.1) : %.2f%%\n", acc_radial))
 cat(sprintf("Kernel Polinomial (C=1, d=3)   : %.2f%%\n", acc_poli))
@@ -253,3 +254,115 @@ cat(sprintf("SVM Tuneado       (C=10, s=0.01): %.2f%%\n", acc_tuned))
 El SVM Tuneado (C=10, sigma=0.01) obtuvo el mejor Accuracy con 58.41%, confirmando que el grid search logró mejorar el modelo base. En segundo lugar quedó el Kernel Radial con 58.05%, muy cerca del tuneado y demostrando que el kernel radial es el más adecuado para este problema. El Kernel Lineal quedó en tercer lugar con 54.77%, lo que confirma lo anticipado al ver sus 4,247 vectores de soporte de que las categorías de precio no son linealmente separables. Finalmente el Kernel Polinomial fue el peor con 52.41%, a pesar de su mayor flexibilidad teórica, lo que sugiere que el grado 3 no captura bien los patrones de este dataset específico. En general todos los modelos rondan el 55-58% de Accuracy, un resultado consistente con los demás algoritmos de clasificación evaluados en labs anteriores donde la categoría media siempre fue difícil de separar.
 
 
+# Actividad 6 - Matrices de confusión.
+```{r}
+cat("===== Kernel Lineal (C=1) =====\n")
+cm_lineal <- confusionMatrix(pred_lineal, test_svm$precio_cat)
+print(cm_lineal)
+
+# Kernel Radial
+cat("\n===== Kernel Radial (C=1, gamma=0.1) =====\n")
+cm_radial <- confusionMatrix(pred_radial, test_svm$precio_cat)
+print(cm_radial)
+
+# Kernel Polinomial
+cat("\n===== Kernel Polinomial (C=1, d=3) =====\n")
+cm_poli <- confusionMatrix(pred_poli, test_svm$precio_cat)
+print(cm_poli)
+
+# SVM Tuneado
+cat("\n===== SVM Tuneado (C=10, sigma=0.01) =====\n")
+cm_tuned <- confusionMatrix(pred_tuned, test_svm$precio_cat)
+print(cm_tuned)
+```
+```{r}
+plot_confusion_matrix <- function(cm, titulo) {
+  df <- as.data.frame(cm$table)
+  colnames(df) <- c("Predicho", "Real", "Freq")
+  
+  ggplot(df, aes(x = Real, y = Predicho, fill = Freq)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = Freq), size = 5, fontface = "bold") +
+    scale_fill_gradient(low = "#E3F2FD", high = "#1565C0") +
+    labs(title = titulo, x = "Clase Real", y = "Clase Predicha") +
+    theme_minimal(base_size = 13)
+}
+
+plot_confusion_matrix(cm_lineal,  "Matriz de Confusión - Kernel Lineal")
+plot_confusion_matrix(cm_radial,  "Matriz de Confusión - Kernel Radial")
+plot_confusion_matrix(cm_poli,    "Matriz de Confusión - Kernel Polinomial")
+plot_confusion_matrix(cm_tuned,   "Matriz de Confusión - SVM Tuneado")
+```
+
+Los cuatro modelos SVM muestran un patrón consistente: el SVM Tuneado obtuvo el mejor desempeño con 58.41% de Accuracy y K=0.378, seguido del Kernel Radial 58.05%, el Lineal 56.08% y finalmente el Polinomial 52.41%. En todos los casos, la clase "media" fue la más difícil de clasificar, con Sensitivity tan baja como 0.22 en el modelo lineal, ya que al estar delimitada por umbrales arbitrarios comparte características con las otras clases.
+
+
+# Actividad 7 - Analisis de modelos.
+```{r}
+set.seed(123)
+pred_train_lineal <- predict(svm_lineal,   newdata = train_svm_m)
+pred_train_radial <- predict(svm_radial,   newdata = train_svm_m)
+pred_train_poli   <- predict(svm_poli,     newdata = train_svm_m)
+pred_train_tuned  <- predict(modelo_tuned, newdata = train_svm_m)
+
+acc_train_lineal <- mean(pred_train_lineal == train_svm_m$precio_cat) * 100
+acc_train_radial <- mean(pred_train_radial == train_svm_m$precio_cat) * 100
+acc_train_poli   <- mean(pred_train_poli   == train_svm_m$precio_cat) * 100
+acc_train_tuned  <- mean(pred_train_tuned  == train_svm_m$precio_cat) * 100
+
+acc_cv_tuned <- max(modelo_tuned$results$Accuracy) * 100
+
+cat("       Comparación Accuracy: Entrenamiento vs Prueba    \n")
+cat(sprintf("%-35s %10s %10s %10s\n", "Modelo", "Train(%)", "Test(%)", "Diff(%)"))
+cat(rep("-", 65), "\n", sep = "")
+cat(sprintf("%-35s %10.2f %10.2f %10.2f\n", "Kernel Lineal (C=1)",
+            acc_train_lineal, acc_lineal, acc_train_lineal - acc_lineal))
+cat(sprintf("%-35s %10.2f %10.2f %10.2f\n", "Kernel Radial (C=1, g=0.1)",
+            acc_train_radial, acc_radial, acc_train_radial - acc_radial))
+cat(sprintf("%-35s %10.2f %10.2f %10.2f\n", "Kernel Polinomial (C=1, d=3)",
+            acc_train_poli, acc_poli, acc_train_poli - acc_poli))
+cat(sprintf("%-35s %10.2f %10.2f %10.2f\n", "SVM Tuneado (C=10, s=0.01)",
+            acc_train_tuned, acc_tuned, acc_train_tuned - acc_tuned))
+cat("========================================================\n")
+cat(sprintf("CV Accuracy (SVM Tuneado, 5-fold): %.2f%%\n", acc_cv_tuned))
+
+diagnostico <- function(train_acc, test_acc, nombre) {
+  diff <- train_acc - test_acc
+  cat(sprintf("\n[%s]\n", nombre))
+  if (train_acc < 65 & test_acc < 65) {
+    cat("  DESAJUSTE (Underfitting): Bajo rendimiento en train y test.\n")
+  } else if (diff > 10) {
+    cat("  Sobreajuste: Gran diferencia train-test.\n")
+  } else {
+    cat(" AJUSTE ACEPTABLE: Diferencia train-test pequeña.\n")
+  }
+}
+
+diagnostico(acc_train_lineal, acc_lineal, "Kernel Lineal")
+diagnostico(acc_train_radial, acc_radial, "Kernel Radial")
+diagnostico(acc_train_poli,   acc_poli,   "Kernel Polinomial")
+diagnostico(acc_train_tuned,  acc_tuned,  "SVM Tuneado")
+
+df_comparacion <- data.frame(
+  Modelo   = rep(c("Lineal", "Radial", "Polinomial", "Tuneado"), each = 2),
+  Conjunto = rep(c("Entrenamiento", "Prueba"), times = 4),
+  Accuracy = c(acc_train_lineal, acc_lineal,
+               acc_train_radial, acc_radial,
+               acc_train_poli,   acc_poli,
+               acc_train_tuned,  acc_tuned)
+)
+
+ggplot(df_comparacion, aes(x = Modelo, y = Accuracy, fill = Conjunto)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.6, alpha = 0.85) +
+  geom_text(aes(label = sprintf("%.1f%%", Accuracy)),
+            position = position_dodge(width = 0.6), vjust = -0.5, size = 3.5) +
+  geom_hline(yintercept = 65, linetype = "dashed", color = "red", linewidth = 0.7) +
+  annotate("text", x = 0.5, y = 66, label = "Umbral 65%",
+           color = "red", hjust = 0, size = 3.5) +
+  scale_fill_manual(values = c("Entrenamiento" = "#1565C0", "Prueba" = "#90CAF9")) +
+  labs(title    = "Accuracy: Entrenamiento vs Prueba por Modelo",
+       x = "Modelo", y = "Accuracy (%)", fill = "Conjunto") +
+  ylim(0, 80) +
+  theme_minimal(base_size = 12)
+```
+Ningún modelo presenta sobreajuste, las diferencias entre Accuracy de entrenamiento y prueba son mínimas en todos los casos lo que indica que los modelos generalizan correctamente a datos nuevos. Sin embargo, el problema evidente es el desajuste. todos los modelos quedan por debajo del umbral del 65% tanto en entrenamiento como en prueba, lo que significa que no están capturando la complejidad real del problema. Esto no es un fallo del algoritmo SVM en sí, sino una limitación de las seis variables disponibles para explicar el precio de un Airbnb.
