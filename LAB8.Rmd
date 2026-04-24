@@ -162,3 +162,17 @@ cat("\nMuestra de entrenamiento para SVM:", nrow(train_svm_m), "filas\n")
 Se creó la variable categórica de precio utilizando los mismos puntos de corte P33=$136 y P67=$250 definidos desde el Laboratorio 4, garantizando consistencia con todos los modelos anteriores. Las propiedades se clasifican como barata (precio ≤$136), media ($136-$250) y cara (>$250). La distribución es bastante balanceada en ambos conjuntos: en entrenamiento hay 16,789 baratas, 14,963 caras y 16,690 medias, y en prueba 4,167 baratas, 3,741 caras y 4,265 medias, lo cual es favorable para el entrenamiento ya que ninguna clase domina sobre las demás.
 
 Dado que SVM tiene una complejidad computacional cuadrática con el número de observaciones, entrenar con las 48,442 filas completas tomaría horas. Por ello se utilizará una muestra aleatoria de 5,000 observaciones del conjunto de entrenamiento con set.seed(123) para garantizar reproducibilidad, una práctica válida y común cuando se trabaja con SVM en datasets grandes.
+
+
+# Actividad 4 - Generación de modelos de SVM
+```{r svm-lineal}
+# Modelo 1: Kernel Lineal (C=1)
+set.seed(123)
+svm_lineal <- svm(precio_cat ~ .,
+                  data   = train_svm_m,
+                  kernel = "linear",
+                  cost   = 1,
+                  scale  = TRUE)
+print(svm_lineal)
+```
+El primer modelo utiliza un kernel lineal con C=1, lo que significa que busca un hiperplano de separación recto en el espacio original de las variables. El modelo identificó 4,247 vectores de soporte sobre las 5,000 observaciones de entrenamiento, lo que representa el 84.9% del total. Este número tan alto indica que las tres categorías de precio no son linealmente separables, es decir, no existe una línea recta que pueda dividir claramente las propiedades baratas, medias y caras con estas variables. Esto es esperable dado que el precio de un Airbnb depende de combinaciones complejas de características que raramente forman fronteras lineales. Un número elevado de vectores de soporte también sugiere que el modelo puede tener dificultades para generalizar bien a datos nuevos.
