@@ -190,3 +190,17 @@ print(svm_radial)
 ```
 El segundo modelo utiliza un kernel radial (RBF) con C=1 y gamma=0.1, que a diferencia del lineal, puede trazar fronteras de decisión curvas en el espacio de las variables, lo que lo hace más flexible para capturar relaciones no lineales entre las características y el precio. El número de vectores de soporte bajó a 4,050, ligeramente menor que el modelo lineal (4,247), lo que sugiere que el kernel radial logra una separación marginalmente mejor entre las clases. El parámetro gamma=0.1 controla qué tan "lejos" influye cada punto de entrenamiento: valores pequeños hacen fronteras más suaves y valores grandes las hacen más irregulares. Con gamma=0.1 el modelo tiene una influencia moderada por punto, buscando un balance entre flexibilidad y generalización.
 
+```{r svm-polinomial}
+# Modelo 3: Kernel Polinomial (C=1, d=3)
+set.seed(123)
+svm_poli <- svm(precio_cat ~ .,
+                data   = train_svm_m,
+                kernel = "polynomial",
+                cost   = 1,
+                degree = 3,
+                scale  = TRUE)
+print(svm_poli)
+```
+El tercer modelo utiliza un kernel polinomial con C=1 y grado d=3, que proyecta los datos a un espacio de mayor dimensión usando combinaciones polinomiales de las variables hasta el grado especificado. Con 4,505 vectores de soporte, este modelo tiene el número más alto de los tres, superando tanto al lineal (4,247) como al radial (4,050). Esto indica que el kernel polinomial de grado 3 tiene más dificultades para encontrar fronteras limpias entre las categorías de precio con estas variables, lo que generalmente se traduce en peor capacidad de generalización. El parámetro coef.0 = 0 es el término independiente del polinomio, que en este caso no agrega desplazamiento a la función kernel. En general, el kernel polinomial es más sensible a la escala de los datos y requiere un tuneo más cuidadoso de sus parámetros para alcanzar buen desempeño.
+
+
