@@ -439,3 +439,48 @@ ggplot(tiempo_svm, aes(x = reorder(Modelo, Tiempo),
   theme_minimal()
 ```
 En cuanto al tiempo de procesamiento, los tres modelos SVM son notablemente rápidos gracias a la muestra reducida de 5,000 observaciones. El Kernel Lineal fue el más rápido con 0.49 segundos, lo cual tiene sentido ya que busca únicamente un hiperplano recto sin transformaciones complejas del espacio. El Kernel Radial tardó 0.51 segundos, prácticamente igual al lineal. El Kernel Polinomial fue el más lento con 0.65 segundos, ya que calcular las combinaciones polinomiales de grado 3 entre variables requiere más operaciones matemáticas. Las diferencias son mínimas entre los tres, por lo que el tiempo no es un factor determinante para elegir entre kernels en este caso. Vale destacar que estos tiempos corresponden a la muestra de 5,000 filas con el dataset completo de 48,442 observaciones los tiempos se incrementarían considerablemente dado que SVM tiene complejidad cuadrática con el número de observaciones.
+
+# Actividad 9 - Comparación con Modelos anteriores
+```{r svm-comparacion-final}
+# Mejor SVM: Tuneado (C=10, sigma=0.01) con Accuracy 58.41%
+
+comparacion_final_svm <- data.frame(
+  Modelo   = c("Naive Bayes",
+               "RL Multinomial",
+               "SVM Tuneado (C=10, s=0.01)",
+               "KNN (k=220)",
+               "Árbol de Decisión",
+               "RL Binaria (umbral Youden)",
+               "Random Forest"),
+  Accuracy = c(42.26, 58.41, 58.41, 59.37, 69.24, 76.30, 84.46),
+  Kappa    = c(0.1184, 0.3800, 0.3772, 0.3904, 0.5380, 0.4821, 0.7664)
+)
+
+print(comparacion_final_svm)
+
+# Gráfico Accuracy
+ggplot(comparacion_final_svm,
+       aes(x = reorder(Modelo, Accuracy), y = Accuracy, fill = Modelo)) +
+  geom_col(show.legend = FALSE, width = 0.6) +
+  geom_text(aes(label = paste0(Accuracy, "%")),
+            hjust = -0.1, fontface = "bold") +
+  coord_flip() +
+  ylim(0, 100) +
+  labs(title    = "Comparación de Accuracy – Todos los modelos de clasificación",
+       subtitle = "Mayor Accuracy = mejor clasificación",
+       x = NULL, y = "Accuracy (%)") +
+  theme_minimal()
+
+# Gráfico Kappa
+ggplot(comparacion_final_svm,
+       aes(x = reorder(Modelo, Kappa), y = Kappa, fill = Modelo)) +
+  geom_col(show.legend = FALSE, width = 0.6) +
+  geom_text(aes(label = Kappa), hjust = -0.1, fontface = "bold") +
+  coord_flip() +
+  ylim(0, 1) +
+  labs(title    = "Comparación de Kappa – Todos los modelos de clasificación",
+       subtitle = "Mayor Kappa = mejor concordancia",
+       x = NULL, y = "Kappa") +
+  theme_minimal()
+```
+La comparación final entre todos los modelos de clasificación evaluados a lo largo de labs anteriores confirman que Random Forest sigue siendo el modelo ganador con un Accuracy de 84.46% y Kappa de 0.7664, superando a todos los demás por un margen considerable. En segundo lugar destaca la Regresión Logística Binaria con umbral Youden con 76.30%, seguida del Árbol de Decisión con 69.24%. El SVM Tuneado queda en una posición intermedia con 58.41%, empatado en Accuracy con la Regresión Logística Multinomial pero con un Kappa ligeramente menor (0.3772 vs 0.3800), lo que lo coloca prácticamente al mismo nivel que KNN (59.37%, Kappa 0.3904). Esto indica que SVM no aportó una mejora significativa sobre algoritmos más simples como KNN para este problema específico. En cuanto al tiempo de procesamiento, la Regresión Logística fue la más rápida con apenas 0.08ms, seguida de los modelos SVM que tardaron menos de 1 segundo gracias a la muestra reducida. KNN fue el más lento de todos con varios minutos de procesamiento sobre el dataset completo. Random Forest también requirió tiempo considerable por la cantidad de árboles que entrena.
