@@ -366,3 +366,76 @@ ggplot(df_comparacion, aes(x = Modelo, y = Accuracy, fill = Conjunto)) +
   theme_minimal(base_size = 12)
 ```
 Ningún modelo presenta sobreajuste, las diferencias entre Accuracy de entrenamiento y prueba son mínimas en todos los casos lo que indica que los modelos generalizan correctamente a datos nuevos. Sin embargo, el problema evidente es el desajuste. todos los modelos quedan por debajo del umbral del 65% tanto en entrenamiento como en prueba, lo que significa que no están capturando la complejidad real del problema. Esto no es un fallo del algoritmo SVM en sí, sino una limitación de las seis variables disponibles para explicar el precio de un Airbnb.
+
+# Actividad 8 - Comparación entre modelos de SVM
+```{r svm-comparacion}
+# Efectividad, tiempo de procesamiento y errores
+
+# Tabla de métricas de los 4 modelos
+comparacion_svm <- data.frame(
+  Modelo   = c("Kernel Lineal (C=1)",
+               "Kernel Radial (C=1, g=0.1)",
+               "Kernel Polinomial (C=1, d=3)",
+               "SVM Tuneado (C=10, s=0.01)"),
+  Accuracy = c(54.77, 58.05, 52.41, 58.41),
+  Kappa    = c(0.3241, 0.3718, 0.2750, 0.3772),
+  Sens_barata = c(77.87, 62.90, 55.84, 64.63),
+  Sens_cara   = c(70.70, 70.68, 26.33, 71.02),
+  Sens_media  = c(18.22, 42.25, 71.93, 41.27)
+)
+
+print(comparacion_svm)
+
+# Gráfico de Accuracy
+ggplot(comparacion_svm,
+       aes(x = reorder(Modelo, Accuracy), y = Accuracy, fill = Modelo)) +
+  geom_col(show.legend = FALSE, width = 0.6) +
+  geom_text(aes(label = paste0(Accuracy, "%")),
+            hjust = -0.1, fontface = "bold") +
+  coord_flip() +
+  ylim(0, 80) +
+  labs(title    = "Comparación de Accuracy – Modelos SVM",
+       subtitle = "Mayor Accuracy = mejor clasificación",
+       x = NULL, y = "Accuracy (%)") +
+  theme_minimal()
+```
+La comparación entre los cuatro modelos SVM muestra que el SVM Tuneado (C=10, sigma=0.01) es el mejor con 58.41% de Accuracy y Kappa de 0.3772, seguido muy de cerca por el Kernel Radial con 58.05% y Kappa 0.3718. La diferencia entre estos dos es mínima (0.36%), lo que indica que el tuneo aportó una mejora marginal sobre el kernel radial base. En tercer lugar queda el Kernel Lineal con 54.77%, confirmando que las categorías de precio no son linealmente separables. El Kernel Polinomial es el peor con 52.41% y Kappa de apenas 0.275, siendo el modelo menos recomendable para este problema. Analizando dónde se equivoca más y menos cada modelo, hay un patrón claro y es que todos fallan principalmente en la categoría media, que es la más ambigua. Sin embargo cada kernel falla de forma diferente porque el Lineal casi ignora la clase media (Sensibilidad 18.22%), el Polinomial sobreestima la clase media clasificando casi todo ahí (Sensibilidad 71.93% en media pero solo 26.33% en cara), y los modelos Radial y Tuneado tienen el comportamiento más balanceado entre las tres clases. El error más importante desde el punto de vista de negocio sigue siendo clasificar propiedades caras como baratas, que ocurre con menor frecuencia en el SVM Tuneado (335 casos) que en el Lineal (666 casos).
+
+```{r svm-tiempo}
+# Tiempo de procesamiento de cada modelo
+t_lineal <- system.time(
+  svm(precio_cat ~ ., data = train_svm_m,
+      kernel = "linear", cost = 1, scale = TRUE)
+)
+
+t_radial <- system.time(
+  svm(precio_cat ~ ., data = train_svm_m,
+      kernel = "radial", cost = 1, gamma = 0.1, scale = TRUE)
+)
+
+t_poli <- system.time(
+  svm(precio_cat ~ ., data = train_svm_m,
+      kernel = "polynomial", cost = 1, degree = 3, scale = TRUE)
+)
+
+tiempo_svm <- data.frame(
+  Modelo  = c("Lineal", "Radial", "Polinomial"),
+  Tiempo  = round(c(t_lineal["elapsed"],
+                    t_radial["elapsed"],
+                    t_poli["elapsed"]), 2)
+)
+
+print(tiempo_svm)
+
+ggplot(tiempo_svm, aes(x = reorder(Modelo, Tiempo),
+                       y = Tiempo, fill = Modelo)) +
+  geom_col(show.legend = FALSE, width = 0.5) +
+  geom_text(aes(label = paste0(Tiempo, "s")),
+            hjust = -0.1, fontface = "bold") +
+  coord_flip() +
+  ylim(0, max(tiempo_svm$Tiempo) * 1.3) +
+  labs(title = "Tiempo de procesamiento – Modelos SVM",
+       x = NULL, y = "Segundos") +
+  theme_minimal()
+```
+En cuanto al tiempo de procesamiento, los tres modelos SVM son notablemente rápidos gracias a la muestra reducida de 5,000 observaciones. El Kernel Lineal fue el más rápido con 0.49 segundos, lo cual tiene sentido ya que busca únicamente un hiperplano recto sin transformaciones complejas del espacio. El Kernel Radial tardó 0.51 segundos, prácticamente igual al lineal. El Kernel Polinomial fue el más lento con 0.65 segundos, ya que calcular las combinaciones polinomiales de grado 3 entre variables requiere más operaciones matemáticas. Las diferencias son mínimas entre los tres, por lo que el tiempo no es un factor determinante para elegir entre kernels en este caso. Vale destacar que estos tiempos corresponden a la muestra de 5,000 filas con el dataset completo de 48,442 observaciones los tiempos se incrementarían considerablemente dado que SVM tiene complejidad cuadrática con el número de observaciones.
