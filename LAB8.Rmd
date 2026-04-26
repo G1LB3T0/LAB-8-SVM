@@ -542,4 +542,93 @@ El sobreajuste real lo podemos ver en RandomForest y en el Arbol de decisión. E
 
 El resto de modelos presentan desajuste. El caso más llamativo es el SVM Radial, que muestra una diferencia negativa de -4.15%, es decir, rinde marginalmente mejor en prueba que en entrenamiento, lo cual es un indicador claro de que el modelo es demasiado simple para los datos.
 
+# Actividad 11. Modelo de regresión.
 
+```{r}
+set.seed(123)
+idx_reg     <- sample(nrow(train_modelo), 5000)
+train_reg   <- train_modelo[idx_reg, ]
+
+# Modelo.
+set.seed(123)
+svm_reg_base <- svm(price ~ .,
+                    data   = train_reg,
+                    kernel = "radial",
+                    cost   = 1,
+                    gamma  = 0.1,
+                    scale  = TRUE)
+print(svm_reg_base)
+
+pred_base     <- predict(svm_reg_base, newdata = test_modelo)
+rmse_base     <- sqrt(mean((pred_base - test_modelo$price)^2))
+mae_base      <- mean(abs(pred_base - test_modelo$price))
+r2_base       <- cor(pred_base, test_modelo$price)^2
+
+cat(sprintf("RMSE base : %.2f\n", rmse_base))
+cat(sprintf("MAE  base : %.2f\n", mae_base))
+cat(sprintf("R²   base : %.4f\n", r2_base))
+
+# Tuneo caret
+set.seed(123)
+grid_reg <- expand.grid(
+  C     = c(1, 10, 100),
+  sigma = c(0.01, 0.05, 0.1)
+)
+
+ctrl_reg <- trainControl(method = "cv", number = 5, verbose = FALSE)
+
+modelo_reg_tuned <- train(
+  price ~ .,
+  data       = train_reg,
+  method     = "svmRadial",
+  trControl  = ctrl_reg,
+  tuneGrid   = grid_reg,
+  preProcess = c("center", "scale")
+)
+
+print(modelo_reg_tuned$bestTune)
+plot(modelo_reg_tuned,
+     main = "RMSE por combinación C × sigma – SVR Tuneado")
+
+# Predicciones modelo tuneado
+pred_tuned_reg  <- predict(modelo_reg_tuned, newdata = test_modelo)
+rmse_tuned      <- sqrt(mean((pred_tuned_reg - test_modelo$price)^2))
+mae_tuned       <- mean(abs(pred_tuned_reg - test_modelo$price))
+r2_tuned        <- cor(pred_tuned_reg, test_modelo$price)^2
+
+cat("\n===== Comparación Base vs Tuneado =====\n")
+cat(sprintf("%-20s %10s %10s %10s\n", "Modelo", "RMSE", "MAE", "R²"))
+cat(rep("-", 52), "\n", sep = "")
+cat(sprintf("%-20s %10.2f %10.2f %10.4f\n",
+            "SVR Base",    rmse_base,  mae_base,  r2_base))
+cat(sprintf("%-20s %10.2f %10.2f %10.4f\n",
+            "SVR Tuneado", rmse_tuned, mae_tuned, r2_tuned))
+
+# Gráfico Real vs Predicho
+df_pred <- data.frame(
+  Real     = test_modelo$price,
+  Predicho = pred_tuned_reg
+)
+
+ggplot(df_pred, aes(x = Real, y = Predicho)) +
+  geom_point(alpha = 0.2, color = "#1565C0", size = 0.8) +
+  geom_abline(slope = 1, intercept = 0,
+              color = "red", linewidth = 1, linetype = "dashed") +
+  labs(title    = "SVR Tuneado – Precio Real vs Predicho",
+       subtitle = "La línea roja representa predicción perfecta",
+       x = "Precio Real ($)", y = "Precio Predicho ($)") +
+  theme_minimal(base_size = 12)
+
+# Gráfico de residuos
+df_pred$Residuo <- df_pred$Real - df_pred$Predicho
+
+ggplot(df_pred, aes(x = Predicho, y = Residuo)) +
+  geom_point(alpha = 0.2, color = "#E53935", size = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed",
+             color = "black", linewidth = 0.8) +
+  labs(title    = "Gráfico de Residuos – SVR Tuneado",
+       subtitle = "Residuos deben distribuirse aleatoriamente alrededor de 0",
+       x = "Precio Predicho ($)", y = "Residuo ($)") +
+  theme_minimal(base_size = 12)
+```
+El modelo SVR utilizó 4,118 vectores de soporte sobre las 5,000 observaciones de entrenamiento, obteniendo un RMSE de $135.23, MAE de $87.59 y R² de 0.4023, lo que significa que solo explica el 40% de la varianza del precio con un error promedio de casi $88 por propiedad. El tuneo mediante grid search identificó sigma=0.05 y C=1 como la mejor combinación, pero la mejora fue prácticamente nula ya que el RMSE bajó apenas $0.11, el MAE aumentó marginalmente y el R² mejoró en solo 0.0006, confirmando que el modelo ya estaba cerca de su límite de capacidad predictiva con las variables disponibles y que ajustar hiperparámetros no puede compensar la ausencia de predictores más informativos como ubicación geográfica, tipo de propiedad o características del anfitrión.
