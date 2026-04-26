@@ -484,3 +484,62 @@ ggplot(comparacion_final_svm,
   theme_minimal()
 ```
 La comparación final entre todos los modelos de clasificación evaluados a lo largo de labs anteriores confirman que Random Forest sigue siendo el modelo ganador con un Accuracy de 84.46% y Kappa de 0.7664, superando a todos los demás por un margen considerable. En segundo lugar destaca la Regresión Logística Binaria con umbral Youden con 76.30%, seguida del Árbol de Decisión con 69.24%. El SVM Tuneado queda en una posición intermedia con 58.41%, empatado en Accuracy con la Regresión Logística Multinomial pero con un Kappa ligeramente menor (0.3772 vs 0.3800), lo que lo coloca prácticamente al mismo nivel que KNN (59.37%, Kappa 0.3904). Esto indica que SVM no aportó una mejora significativa sobre algoritmos más simples como KNN para este problema específico. En cuanto al tiempo de procesamiento, la Regresión Logística fue la más rápida con apenas 0.08ms, seguida de los modelos SVM que tardaron menos de 1 segundo gracias a la muestra reducida. KNN fue el más lento de todos con varios minutos de procesamiento sobre el dataset completo. Random Forest también requirió tiempo considerable por la cantidad de árboles que entrena.
+
+
+# Actividad 10. Determinar sobreajuste en modelos.
+```{r}
+comparacion_overfitting <- data.frame(
+  Modelo = c("Naive Bayes",
+             "Regresión Logística Multinomial",
+             "KNN (k=220)",
+             "Árbol de Decisión",
+             "Random Forest",
+             "SVM Lineal (C=1)",
+             "SVM Radial (C=1, g=0.1)",
+             "SVM Polinomial (C=1, d=3)",
+             "SVM Tuneado (C=10, s=0.01)"),
+  Acc_Train = c(43.10, 58.80, 61.20, 82.50, 99.10,
+                56.90, 53.90, 58.40, 58.60),
+  Acc_Test  = c(42.26, 58.41, 59.37, 69.24, 84.46,
+                56.08, 58.05, 52.41, 58.41),
+  Kappa_Test = c(0.1184, 0.3800, 0.3904, 0.5380, 0.7664,
+                 0.3438, 0.3718, 0.2750, 0.3772)
+)
+
+comparacion_overfitting$Diferencia <- round(
+  comparacion_overfitting$Acc_Train - comparacion_overfitting$Acc_Test, 2)
+
+comparacion_overfitting$Diagnostico <- ifelse(
+  comparacion_overfitting$Diferencia > 10, "SOBREAJUSTE",
+  ifelse(comparacion_overfitting$Acc_Train < 65 &
+         comparacion_overfitting$Acc_Test  < 65, "DESAJUSTE",
+         "AJUSTE ACEPTABLE"))
+
+print(comparacion_overfitting)
+
+ggplot(comparacion_overfitting,
+       aes(x = reorder(Modelo, Diferencia), y = Diferencia,
+           fill = Diagnostico)) +
+  geom_col(width = 0.6, alpha = 0.85) +
+  geom_hline(yintercept = 10, linetype = "dashed",
+             color = "red", linewidth = 0.8) +
+  annotate("text", x = 0.5, y = 11,
+           label = "Umbral sobreajuste (10%)",
+           color = "red", hjust = 0, size = 3.5) +
+  geom_text(aes(label = paste0(Diferencia, "%")),
+            hjust = -0.15, fontface = "bold", size = 3.5) +
+  coord_flip() +
+  ylim(0, 25) +
+  scale_fill_manual(values = c("SOBREAJUSTE"     = "#E53935",
+                                "DESAJUSTE"       = "#FB8C00",
+                                "AJUSTE ACEPTABLE"= "#43A047")) +
+  labs(title    = "Diagnóstico de Sobreajuste por Modelo",
+       subtitle = "Diferencia entre Accuracy de entrenamiento y prueba",
+       x = NULL, y = "Diferencia Train - Test (%)", fill = "Diagnóstico") +
+  theme_minimal(base_size = 12)
+```
+El sobreajuste real lo podemos ver en RandomForest y en el Arbol de decisión. Esto se explica porque ambos algoritmos son altamente flexibles y tienden a memorizar los datos de entrenamiento: Random Forest con 99.1% en entrenamiento cae a 84.46% en prueba, y el Árbol de Decisión de 82.5% baja a 69.24%, aunque aun así siguen siendo los modelos con mejor Accuracy en prueba de todos los evaluados.
+
+El resto de modelos presentan desajuste. El caso más llamativo es el SVM Radial, que muestra una diferencia negativa de -4.15%, es decir, rinde marginalmente mejor en prueba que en entrenamiento, lo cual es un indicador claro de que el modelo es demasiado simple para los datos.
+
+
