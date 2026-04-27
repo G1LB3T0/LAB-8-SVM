@@ -632,3 +632,58 @@ ggplot(df_pred, aes(x = Predicho, y = Residuo)) +
   theme_minimal(base_size = 12)
 ```
 El modelo SVR utilizó 4,118 vectores de soporte sobre las 5,000 observaciones de entrenamiento, obteniendo un RMSE de $135.23, MAE de $87.59 y R² de 0.4023, lo que significa que solo explica el 40% de la varianza del precio con un error promedio de casi $88 por propiedad. El tuneo mediante grid search identificó sigma=0.05 y C=1 como la mejor combinación, pero la mejora fue prácticamente nula ya que el RMSE bajó apenas $0.11, el MAE aumentó marginalmente y el R² mejoró en solo 0.0006, confirmando que el modelo ya estaba cerca de su límite de capacidad predictiva con las variables disponibles y que ajustar hiperparámetros no puede compensar la ausencia de predictores más informativos como ubicación geográfica, tipo de propiedad o características del anfitrión.
+
+# Actividad 12. Comparacion de Resultados
+```{r svr-comparacion-regresion}
+# Actividad 12: Comparación SVR con modelos de regresión anteriores
+
+comparacion_reg_final <- data.frame(
+  Modelo = c("Naive Bayes",
+             "Árbol Regresión (prof.10)",
+             "Regresión Lineal",
+             "SVR Tuneado",
+             "KNN (k=220)"),
+  RMSE   = c(194.25, 137.40, 136.11, 135.23, 130.89),
+  MAE    = c(132.59,  95.50,  94.95,  87.59,  90.81),
+  R2     = c(0.3428,  0.3535, 0.3659, 0.4023, 0.4141)
+)
+
+print(comparacion_reg_final)
+
+# Gráfico RMSE
+ggplot(comparacion_reg_final,
+       aes(x = reorder(Modelo, RMSE), y = RMSE, fill = Modelo)) +
+  geom_col(show.legend = FALSE, width = 0.6) +
+  geom_text(aes(label = paste0("$", RMSE)),
+            hjust = -0.1, fontface = "bold") +
+  coord_flip() +
+  ylim(0, 230) +
+  labs(title    = "Comparación de RMSE – Modelos de Regresión",
+       subtitle = "Menor RMSE = mejor predicción del precio",
+       x = NULL, y = "RMSE (USD)") +
+  theme_minimal()
+
+# Gráfico R²
+ggplot(comparacion_reg_final,
+       aes(x = reorder(Modelo, R2), y = R2, fill = Modelo)) +
+  geom_col(show.legend = FALSE, width = 0.6) +
+  geom_text(aes(label = R2), hjust = -0.1, fontface = "bold") +
+  coord_flip() +
+  ylim(0, 0.6) +
+  labs(title    = "Comparación de R² – Modelos de Regresión",
+       subtitle = "Mayor R² = mejor ajuste del modelo",
+       x = NULL, y = "R²") +
+  theme_minimal()
+```
+La comparación final entre todos los modelos de regresión evaluados a lo largo del curso muestra que KNN sigue siendo el mejor modelo con el menor RMSE de $130.89 y el mayor R² de 0.4141, superando a todos los demás algoritmos. El SVR Tuneado queda en segundo lugar con RMSE de $135.23 y R² de 0.4023, un resultado competitivo que lo coloca por encima de la Regresión Lineal ($136.11, R² 0.3659) y del Árbol de Regresión ($137.40, R² 0.3535). Es destacable que el SVR logra el mejor MAE de todos los modelos con $87.59, superando incluso a KNN ($90.81), lo que significa que en términos de error absoluto promedio el SVR comete errores más pequeños aunque su RMSE sea ligeramente mayor.
+
+Naive Bayes sigue siendo claramente el peor modelo de regresión con RMSE de $194.25 y R² de apenas 0.3428, confirmando que no es un algoritmo adecuado para predicción de valores continuos. En general, los cuatro modelos competitivos (KNN, SVR, Regresión Lineal y Árbol) se encuentran en un rango estrecho de RMSE entre $130 y $138, lo que sugiere que la limitación real no está en el algoritmo sino en las variables disponibles. Ningún modelo logra superar el 42% de varianza explicada con las 5 variables numéricas actuales, por lo que para mejorar significativamente los resultados sería necesario incorporar variables como ubicación geográfica, tipo de propiedad o características del anfitrión que capturen mejor los determinantes reales del precio en Airbnb.
+
+# Actividad 13. Conclusiones
+A lo largo de este laboratorio se evaluaron modelos de SVM para clasificación y SVR para regresión aplicados al dataset de propiedades Airbnb de SmartStay Advisors. En clasificación, los cuatro modelos SVM probados (Lineal, Radial, Polinomial y Tuneado) obtuvieron resultados modestos en el rango de 52-58% de Accuracy, todos diagnosticados con desajuste debido a que las 5 variables numéricas disponibles no son suficientes para separar claramente las tres categorías de precio. El mejor modelo SVM fue el Tuneado con kernel radial, C=10 y sigma=0.01 con 58.41% de Accuracy y Kappa 0.3772, aunque no logró superar al Árbol de Decisión (69.24%), la Regresión Logística Binaria (76.30%) ni a Random Forest (84.46%), que sigue siendo el mejor clasificador de todos los labs.
+
+En regresión, el SVR Tuneado obtuvo un RMSE de $135.23 y R² de 0.4023, quedando en segundo lugar detrás de KNN ($130.89, R² 0.4141) pero superando a la Regresión Lineal, el Árbol de Regresión y Naive Bayes. Destaca que el SVR logró el mejor MAE de todos los modelos con $87.59, lo que lo convierte en una alternativa competitiva cuando se prioriza minimizar el error absoluto promedio sobre el error cuadrático.
+
+Para los objetivos de SmartStay Advisors se recomienda Random Forest para clasificación por su clara superioridad, y KNN para regresión por su menor RMSE, aunque el SVR es una alternativa válida especialmente cuando el tiempo de entrenamiento es una restricción, ya que con muestras reducidas es considerablemente más rápido que KNN con datasets completos.
+
+
